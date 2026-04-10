@@ -34,7 +34,7 @@ function kuramoto_model(array_dim;
     path = "data/", preset_angvels=nothing,
     preset_phases=nothing,
     filename="kuramoto_model.gif",
-    benchmark=false
+    small_angle=false, benchmark=false
     )
     
     # we define phases as a 2D array of size dim_x+2  x  dim_y+2 to simplify
@@ -50,8 +50,7 @@ function kuramoto_model(array_dim;
     elseif phase_type == "random"
         init_phases = 2pi .* rand(N, N) # gives initial phase angles from 0 to 2pi
     elseif phase_type == "preset"
-        init_phases = zeros(Float64, N, N) # preallocate the initial phases array
-        init_phases[2:end-1, 2:end-1] = preset_phases
+        init_phases = preset_phases
     else
         error("Invalid initial angle type. Choose 'random', 'preset' or 'presynced'.")
     end
@@ -232,12 +231,12 @@ function kuramoto_model(array_dim;
 
     # Integrator block
     if benchmark
-        #println("Benchmarking RK4 integrator with old f()...")
-        #@btime $rk4($theta_dot_old!, $init_phases, $time_steps, $dt)
-        #println("")
-        #println("Benchmarking RK4 integrator with @inbounds in f()...")
-        #@btime $rk4($theta_dot!, $init_phases, $time_steps, $dt)
-        #println("")
+        println("Benchmarking RK4 integrator with old f()...")
+        @btime $rk4($theta_dot_old!, $init_phases, $time_steps, $dt)
+        println("")
+        println("Benchmarking RK4 integrator with @inbounds in f()...")
+        @btime $rk4($theta_dot!, $init_phases, $time_steps, $dt)
+        println("")
         println("Benchmarking RK4 integrator with @inbounds and small angle approximation in f()...")
         @btime $rk4($theta_dot_small_angle!, $init_phases, $time_steps, $dt)
         println("")
@@ -246,7 +245,11 @@ function kuramoto_model(array_dim;
     else
         println("---------------------------------------")
         println("--------Running RK4 integrator:--------")
-        hist_pbc= @time rk4(theta_dot!, init_phases, time_steps, dt)
+        if small_angle
+            hist_pbc = @time rk4(theta_dot_small_angle!, init_phases, time_steps, dt)
+        else
+            hist_pbc= @time rk4(theta_dot!, init_phases, time_steps, dt)
+        end
         println("--------Finished RK4 integrator--------")
         println("---------------------------------------")
     end
@@ -435,7 +438,7 @@ function zip_and_save(rotors_hist_binned, number_of_files)
     file_sizes[1] = filesize(path)
     for i in 1:number_of_files
         step = floor(Int64, i*number_of_steps/number_of_files)
-        if step % floor(number_of_steps/10) == 0
+        if step % floor(number_of_steps/5) == 0
             println("Step: $(step)")
         end
         zipfile = GZip.open(path, "w")
@@ -828,16 +831,16 @@ end
 # Runs a large number of simulations for a range of angular velocities and system sizes, to
 # generate data for the purpose of comparing the effects of changing the system size.
 function l_scales()
-    angvels8  = ["0.2", "0.4", "0.6", "0.8", "1.0", "1.2", "1.4", "1.6", "1.7", "1.8", "1.9", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "3.0"]
-    angvels12 = ["0.2", "0.4", "0.6", "0.8", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.7", "2.9"]
-    angvels16 = ["0.2", "0.4", "0.6", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0", "2.2", "2.4"]
-    angvels20 = ["0.2", "0.4", "0.6", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
-    angvels24 = ["0.2", "0.4", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.8", "2.0", "2.2", "2.4"]
-    angvels32 = ["0.2", "0.4", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
-    angvels40 = ["0.2", "0.4", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
-    angvels48 = ["0.2", "0.4", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
+    angvels8  = ["0.2", "0.4", "0.6", "0.8"]#, "1.0", "1.2", "1.4", "1.6", "1.7", "1.8", "1.9", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7", "2.8", "2.9", "3.0"]
+    angvels12 = ["0.2", "0.4", "0.6", "0.8"]#, "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.7", "2.9"]
+    angvels16 = ["0.2", "0.4", "0.6", "0.8"]#, "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0", "2.2", "2.4"]
+    angvels20 = ["0.2", "0.4", "0.6", "0.8"]#, "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
+    angvels24 = ["0.2", "0.4", "0.6", "0.7"]#, "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.8", "2.0", "2.2", "2.4"]
+    angvels32 = ["0.2", "0.4", "0.6", "0.7"]#, "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
+    angvels40 = ["0.2", "0.4", "0.6", "0.7"]#, "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
+    angvels48 = ["0.2", "0.4", "0.6", "0.7"]#, "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "2.0", "2.2", "2.4"]
     angvels = [angvels8, angvels12, angvels16, angvels20, angvels24, angvels32, angvels40, angvels48]
-    system_sizes = [8, 12#, 16, 20, 24, 32, 40, 48
+    system_sizes = [8, 12, 16, 20, 24, 32, 40, 48
     ]
     versions = ["", "_lscale1", "_lscale2", "_lscale3", "_lscale4",
     "l_scale5", "l_scale6", "l_scale7", "l_scale8", "l_scale9"
@@ -953,23 +956,14 @@ function large_system()
     end
     return
 end
-#(array_dim; 
-#    angvel_scale=0.5,
-#    time_steps=1000000, dt=0.001, save_rate=1000,
-#    animate=true, phase_type="random", init_angle=0.9,
-#    angvel_type="random", epsilon=0.1,
-#    path = "data/", preset_angvels=nothing,
-#    preset_phases=nothing,
-#    filename="kuramoto_model.gif",
-#    benchmark=false
-#    )
+
 function benchmark_RK4()
     array_dim = 32
     angvel_scale = 1.1
     sim_time = 1500
     dt = 0.005
     path = "data/benchmark/"
-    init_state = zeros(Float64, array_dim, array_dim)
+    init_state = zeros(Float64, array_dim+2, array_dim+2)
     t_steps = Int(round(sim_time/dt))
     angvel_preset = get_preset_angvels(array_dim, angvel_scale)
     kuramoto_model(array_dim; 
@@ -980,12 +974,30 @@ function benchmark_RK4()
     return
 end
 
+function animate(;v="")
+    array_dim = 32
+    angvel_scale = 0.3
+    sim_time = 1500
+    dt = 0.005
+    path = "data/animations/"
+    t_steps = Int(round(sim_time/dt))
+    angvel_preset = get_preset_angvels(array_dim, angvel_scale, v=v)
+    kuramoto_model(array_dim; 
+        angvel_scale=angvel_scale, angvel_type="preset", preset_angvels=angvel_preset,
+        time_steps=t_steps, dt=dt, phase_type="random",
+        animate=true, filename=path * "kuramoto_$(array_dim)_angvels$(angvel_scale)_$(v).gif"
+    )
+    return
+end
+
+
 function main()
     #hysteresis()
     #l_scale()
+    #l_scales()
     #time_step_stability()
     #large_system()
-    benchmark_RK4()
+    #benchmark_RK4()
     return
 end    
 
